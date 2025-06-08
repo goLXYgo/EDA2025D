@@ -1,115 +1,165 @@
-#include "VCDParser.h"
+#include "../inc/VCDParser.h"
 #include <fstream>
 #include <sstream>
 #include <iostream>
-#include <algorithm>
 
 using namespace std;
 
-VCDParser::VCDParser() {} // 預設建構子
+VCDParser::VCDParser() {}
 
 bool VCDParser::load(const string &filename)
 {
-    ifstream fin(filename); // 開啟檔案
+
+    ifstream fin(filename, ios::binary);
+    char bom[3] = {0};
+    fin.read(bom, 3);
+    if (!(static_cast<unsigned char>(bom[0]) == 0xEF && static_cast<unsigned char>(bom[1]) == 0xBB && static_cast<unsigned char>(bom[2]) == 0xBF))
+    {
+        fin.seekg(0); // not a UTF-8 BOM, rewind
+    }
     if (!fin.is_open())
-        return false; // 若無法開啟則回傳 false
+        return false;
 
     string line;
-    bool in_definitions = true;
-    uint64_t current_time = 0;
+    bool parsing_changes = false;
 
     while (getline(fin, line))
     {
-        line = trim(line); // 去除空白
-
-        if (line.find("$var") == 0)
-        { // 處理訊號定義行
-            istringstream iss(line);
-            string temp, type, symbol, name;
-            int width;
-
-            iss >> temp >> type >> width >> symbol >> name;
-            symbol_table[symbol] = {name, type, width}; // 儲存 symbol 對應
-        }
-
-        if (line == "$enddefinitions $end")
-            break; // 結束宣告區則跳出
-    }
-
-    while (getline(fin, line))
-    {
-        line = trim(line); // 處理 $dumpvars 區段
-        if (line == "$dumpvars")
+        if (line.find("$var") != string::npos)
         {
-            while (getline(fin, line))
-            {
-                line = trim(line);
-                if (line == "$end")
-                    break; // 結束 dumpvars 區段
-            }
-            break;
-        }
-    }
+            istringstream iss(line);
+            vector<string> tokens;
+            string tok;
+            while (iss >> tok)
+                tokens.push_back(tok);
 
-    while (getline(fin, line))
-    {
-        line = trim(line); // 處理訊號變化
-        if (line.empty())
+            if (tokens.size() >= 5)
+            {
+                string type = tokens[1];
+                string width_str = tokens[2];
+                string symbol = tokens[3];
+                string name = tokens[4];
+
+                int width = 1;
+                try
+                {
+                    width = stoi(width_str);
+                }
+                catch (...)
+                {
+                    width = 1;
+                }
+
+                symbol_width[symbol] = width;
+
+                // ✅ 新增這段，讓 TransactionAnalyzer 能找到 psel、penable 等對應 symbol
+                SignalInfo info;
+                info.name = name;
+                info.type = type;
+                info.width = width;
+                symbol_table[symbol] = info;
+            }
+        }
+
+        else if (line == "$dumpvars")
+        {
+            parsing_changes = true;
+
+            // ✅ 建立 timestamp = 0 的初始化變化記錄
+            VCDChange init_change;
+            init_change.timestamp = 0;
+            changes.push_back(init_change);
             continue;
+        }
+        else if (line == "$enddefinitions $end")
+        {
+            continue;
+        }
+        else if (parsing_changes)
+        {
+            if (line.empty())
+                continue;
 
-        if (line[0] == '#')
-        { // 處理時間戳記
-            current_time = stoull(line.substr(1));
-            changes.push_back({current_time, {}}); // 建立新事件
-        }
-        else if (line[0] == 'b')
-        { // 多位元變化
-            size_t space_pos = line.find(' ');
-            string bin_value = line.substr(1, space_pos - 1);
-            string symbol = line.substr(space_pos + 1);
-            if (symbol_table.count(symbol))
+            if (line[0] == '#')
             {
-                string signal_name = symbol_table[symbol].name;
-                string hex_value = binToHex(bin_value);                     // 轉為 hex
-                changes.back().changes.push_back({signal_name, hex_value}); // 記錄變化
+                VCDChange change;
+                change.timestamp = stoull(line.substr(1));
+                changes.push_back(change);
             }
-        }
-        else
-        { // 單位元變化
-            char value = line[0];
-            string symbol = line.substr(1);
-            if (symbol_table.count(symbol))
+            else if (!changes.empty())
             {
-                string signal_name = symbol_table[symbol].name;
-                changes.back().changes.push_back({signal_name, string(1, value)}); // 記錄變化
+                VCDChange &current = changes.back();
+                if (line[0] == 'b')
+                {
+                    // 格式: bxxxx <symbol>
+                    size_t space_pos = line.find(' ');
+                    if (space_pos != string::npos)
+                    {
+                        string raw_value = line.substr(1, space_pos - 1); // e.g., "1101..."
+                        string symbol = line.substr(space_pos + 1);       // e.g., "%"
+
+                        int width = symbol_width.count(symbol) ? symbol_width[symbol] : 1;
+                        string padded_value = string(width - raw_value.size(), '0') + raw_value;
+
+                        signal_value[symbol] = padded_value;
+
+                        // ✅ 這一行不能漏，否則不會被放入 changes
+                        current.changes.emplace_back(symbol, padded_value);
+                    }
+                }
+
+                else
+                {
+                    // scalar: <value><symbol>
+                    string value = line.substr(0, 1);
+                    string symbol = line.substr(1);
+                    current.changes.emplace_back(symbol, value);
+                }
             }
         }
     }
-
-    return true; // 成功載入
+    // cout << "[INFO] Parsed " << changes.size() << " timestamp blocks." << endl;
+    for (const auto &change : changes)
+    {
+        // cout << "#" << change.timestamp << endl;
+        for (const auto &[symbol, value] : change.changes)
+        {
+            string sym_clean = trim(symbol);
+            auto it = symbol_table.find(sym_clean);
+            string name = (it != symbol_table.end()) ? it->second.name : "??";
+            // cout << "  " << name << "(" << sym_clean << ") = " << value << endl;
+        }
+    }
+    return true;
 }
 
 const unordered_map<string, SignalInfo> &VCDParser::getSymbolTable() const
 {
-    return symbol_table; // 回傳符號表
+    return symbol_table;
 }
 
 const vector<VCDChange> &VCDParser::getChanges() const
 {
-    return changes; // 回傳訊號變化事件
+    return changes;
 }
 
 string VCDParser::trim(const string &s)
 {
-    size_t start = s.find_first_not_of(" \t\n\r");
-    size_t end = s.find_last_not_of(" \t\n\r");
-    return (start == string::npos) ? "" : s.substr(start, end - start + 1); // 去除首尾空白
+    size_t first = s.find_first_not_of(" \t\n\r");
+    size_t last = s.find_last_not_of(" \t\n\r");
+    return (first == string::npos) ? "" : s.substr(first, last - first + 1);
 }
 
 string VCDParser::binToHex(const string &bin)
 {
-    stringstream ss;
-    unsigned long val = stoul(bin, nullptr, 2); // 二進位轉整數
-    ss << "0x" << hex << uppercase << val;      // 輸出為十六進位字串
-    return ss.str();
+    try
+    {
+        stringstream ss;
+        ss << hex << uppercase << stoi(bin, nullptr, 2);
+        return ss.str();
+    }
+    catch (...)
+    {
+        return "??"; // fallback if binary string is malformed
+    }
 }

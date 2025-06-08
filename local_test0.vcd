@@ -1,0 +1,25 @@
+$timescale 1 ps $end
+$scope module test $end
+$var reg 1 ( psel $end
+$var reg 1 ) penable $end
+$var reg 1 * pready $end
+$var reg 1 ' pwrite $end
+$var reg 32 % paddr [31:0] $end
+$var reg 32 + prdata [31:0] $end
+$enddefinitions $end
+$dumpvars
+0(
+0)
+0*
+0'
+b00000000000000000000000000001000 %
+b10101010101010101010101010101010 +
+$end
+
+#100
+1( 
+0)   
+0'  
+#200
+1)   
+1*   
