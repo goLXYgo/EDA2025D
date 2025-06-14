@@ -97,20 +97,20 @@ int main(int argc, char *argv[])
         return 3;
     }
 
-    fout << "1. Number of Read Transactions with no wait states: " << read_no_wait << "\n";
-    fout << "2. Number of Read Transactions with wait states: " << read_wait << "\n";
-    fout << "3. Number of Write Transactions with no wait states: " << write_no_wait << "\n";
-    fout << "4. Number of Write Transactions with wait states: " << write_wait << "\n";
-    fout << "5. Average Read Cycle: " << fixed << setprecision(2) << avg_read_cycle << " cycles\n";
-    fout << "6. Average Write Cycle: " << fixed << setprecision(2) << avg_write_cycle << " cycles\n";
-    fout << "7. Bus Utilization: " << fixed << setprecision(2) << bus_utilization << "%\n";
-    fout << "8. Number of Idle Cycles: " << idle_cycles << "\n";
-    fout << "9. Number of Completer: " << analyzer.getCompleterCount() << "\n";
-    fout << "10. CPU Elapsed Time: " << fixed << setprecision(2) << elapsed_ms << " ms\n";
-    fout << "11. Number of Transactions with Timeout: " << timeout << "\n";
-    fout << "12. Number of Out-of-Range Accesses: " << out_of_range_count << "\n";
-    fout << "13. Number of Mirrored Transactions: " << mirrored_count << "\n";
-    fout << "14. Number of Read-Write Overlap Errors: " << overlap_error_count << "\n";
+    fout << "Number of Read Transactions with no wait states: " << read_no_wait << "\n";
+    fout << "Number of Read Transactions with wait states: " << read_wait << "\n";
+    fout << "Number of Write Transactions with no wait states: " << write_no_wait << "\n";
+    fout << "Number of Write Transactions with wait states: " << write_wait << "\n";
+    fout << "Average Read Cycle: " << fixed << setprecision(2) << avg_read_cycle << " cycles\n";
+    fout << "Average Write Cycle: " << fixed << setprecision(2) << avg_write_cycle << " cycles\n";
+    fout << "Bus Utilization: " << fixed << setprecision(2) << bus_utilization << "%\n";
+    fout << "Number of Idle Cycles: " << idle_cycles << "\n";
+    fout << "Number of Completer: " << analyzer.getCompleterCount() << "\n";
+    fout << "CPU Elapsed Time: " << fixed << setprecision(2) << elapsed_ms << " ms\n\n";
+    fout << "Number of Transactions with Timeout: " << timeout << "\n";
+    fout << "Number of Out-of-Range Accesses: " << out_of_range_count << "\n";
+    fout << "Number of Mirrored Transactions: " << mirrored_count << "\n";
+    fout << "Number of Read-Write Overlap Errors: " << overlap_error_count << "\n";
 
     fout << "\n";
     {
@@ -118,8 +118,13 @@ int main(int argc, char *argv[])
         analyzer.printCompleterInfo(ss);
         fout << ss.str();
     }
-
+    fout << "\n";
+    {
+        std::stringstream ss;
+        analyzer.generateCompleterErrorReport(ss);
+        fout << ss.str();
+    }
     fout.close();
-    cout << "Done. Output written to " << output_file << endl;
+    // cout << "Done. Output written to " << output_file << endl;
     return 0;
 }

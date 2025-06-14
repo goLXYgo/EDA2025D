@@ -9,6 +9,10 @@ using namespace std;
 
 TransactionAnalyzer::TransactionAnalyzer() {}
 
+auto pad32 = [](const std::string &bin)
+{
+    return std::string(32 - bin.length(), '0') + bin;
+};
 bool isDataUnknown(const Transaction &txn)
 {
     const std::string &data = txn.data.empty() ? txn.orig_data : txn.data;
@@ -37,9 +41,9 @@ void TransactionAnalyzer::feed(const VCDChange &change)
     string psel = getSignal("psel");
     string penable = getSignal("penable");
     string pwrite = getSignal("pwrite");
-    string paddr = getSignal("paddr");
-    string pwdata = getSignal("pwdata");
-    string prdata = getSignal("prdata");
+    string paddr = pad32(getSignal("paddr"));
+    string pwdata = pad32(getSignal("pwdata"));
+    string prdata = pad32(getSignal("prdata"));
     string pready = getSignal("pready");
 
     // ✅ Debug: Show timestamp + critical signal states
@@ -60,20 +64,20 @@ void TransactionAnalyzer::feed(const VCDChange &change)
         current.orig_data = (current.type == TransactionType::WRITE) ? pwdata : prdata;
         in_transaction = true;
 
-        std::cout << "[DEBUG] Setup Phase detected at #" << now
-                  << " -> PSEL=1, PENABLE=0, Type=" << ((current.type == TransactionType::WRITE) ? "WRITE" : "READ")
-                  << ", Addr=" << binToHex(paddr) << std::endl;
+        // std::cout << "[DEBUG] Setup Phase detected at #" << now
+        //           << " -> PSEL=1, PENABLE=0, Type=" << ((current.type == TransactionType::WRITE) ? "WRITE" : "READ")
+        //           << ", Addr=" << binToHex(paddr) << std::endl;
     }
     // 是否timeout
     if (in_transaction && (now - current.start_time >= 1000000))
     {
         current.timed_out = true;
         current.end_time = now;
-        std::cout << "[DEBUG] Timeout Detected: Transaction started at #"
-                  << current.start_time << ", timed out at #"
-                  << now << " -> Duration = "
-                  << (now - current.start_time) / clock_period_ps << " cycles, Addr = "
-                  << binToHex(current.addr) << std::endl;
+        // std::cout << "[DEBUG] Timeout Detected: Transaction started at #"
+        //           << current.start_time << ", timed out at #"
+        //           << now << " -> Duration = "
+        //           << (now - current.start_time) / clock_period_ps << " cycles, Addr = "
+        //           << binToHex(current.addr) << std::endl;
         in_transaction = false;
         return;
     }
@@ -82,7 +86,7 @@ void TransactionAnalyzer::feed(const VCDChange &change)
     {
         current.has_access_phase = true;
         current.access_time = now;
-        std::cout << "[DEBUG] Access Phase entered at #" << now << std::endl;
+        // std::cout << "[DEBUG] Access Phase entered at #" << now << std::endl;
     }
     // 是否overlap
     if (in_transaction &&
@@ -96,10 +100,10 @@ void TransactionAnalyzer::feed(const VCDChange &change)
         fake_read.start_time = now;
         fake_read.read_write_overlap = true;
 
-        std::cout << "[ERROR] Read-Write Overlap @" << now
-                  << " -> Addr = " << binToHex(fake_read.addr) << std::endl;
+        // std::cout << "[ERROR] Read-Write Overlap @" << now
+        //           << " -> Addr = " << binToHex(fake_read.addr) << std::endl;
 
-        // optional: 可以記到一個 overlap_errors vector 裡
+        // optional: 可以記到一個 overlap_errors vector
         overlap_errors.push_back(fake_read);
     }
     // 完成交易
@@ -113,13 +117,14 @@ void TransactionAnalyzer::feed(const VCDChange &change)
 
         std::string addr_access = getSignal("paddr");
         std::string data_access = (current.type == TransactionType::WRITE) ? getSignal("pwdata") : getSignal("prdata");
+        current.completer_id = guessCompleterID(current.addr); // ← 加這行
         checkCorruptionBetweenPhases(current, addr_access, data_access);
 
-        std::cout << "[INFO] Valid Transaction @" << current.end_time
-                  << " Type=" << ((current.type == TransactionType::WRITE) ? "WRITE" : "READ")
-                  << " Addr=0x" << std::hex << std::uppercase << std::stoul(current.addr, nullptr, 2)
-                  << " Data=0x" << std::hex << std::uppercase << std::stoul(current.data, nullptr, 2)
-                  << " Wait=" << std::dec << current.has_wait_state << std::endl;
+        // std::cout << "[INFO] Valid Transaction @" << current.end_time
+        //           << " Type=" << ((current.type == TransactionType::WRITE) ? "WRITE" : "READ")
+        //           << " Addr=0x" << std::hex << std::uppercase << std::stoul(current.addr, nullptr, 2)
+        //           << " Data=0x" << std::hex << std::uppercase << std::stoul(current.data, nullptr, 2)
+        //           << " Wait=" << std::dec << current.has_wait_state << std::endl;
 
         finalize(current);
         in_transaction = false;
@@ -163,18 +168,18 @@ void TransactionAnalyzer::checkCorruptionBetweenPhases(Transaction &txn,
     {
         completer_addr_detectors[txn.completer_id].addExample(txn.addr, addr_access);
         txn.addr_corrupted = true;
-        std::cout << "[ADDR_CORRUPTION] Completer " << txn.completer_id
-                  << " @ #" << txn.end_time
-                  << " -> Setup: " << txn.addr << " | Access: " << addr_access << std::endl;
+        // std::cout << "[ADDR_CORRUPTION] Completer " << txn.completer_id
+        //           << " @ #" << txn.end_time
+        //           << " -> Setup: " << binToHex(txn.addr) << " | Access: " << binToHex(addr_access) << std::endl;
     }
 
     if (!data_access.empty() && txn.orig_data != data_access)
     {
         completer_data_detectors[txn.completer_id].addExample(txn.orig_data, data_access);
         txn.data_corrupted = true;
-        std::cout << "[DATA_CORRUPTION] Completer " << txn.completer_id
-                  << " @ #" << txn.end_time
-                  << " -> Setup: " << txn.orig_data << " | Access: " << data_access << std::endl;
+        // std::cout << "[DATA_CORRUPTION] Completer " << txn.completer_id
+        //           << " @ #" << txn.end_time
+        //           << " -> Setup: " << binToHex(txn.orig_data) << " | Access: " << binToHex(data_access) << std::endl;
     }
 }
 
@@ -220,8 +225,8 @@ void TransactionAnalyzer::checkOutOfRange(Transaction &txn)
             if (isDataUnknown(txn))
             {
                 txn.completer_unconnected = true;
-                std::cout << "[#" << txn.end_time << "] Unknown Response -> PADDR 0x"
-                          << std::hex << addr << " Completer '" << completer << "' appears unconnected in this trace" << std::endl;
+                // std::cout << "[#" << txn.end_time << "] Unknown Response -> PADDR 0x"
+                //           << std::hex << addr << " Completer '" << completer << "' appears unconnected in this trace" << std::endl;
             }
             else
             {
@@ -232,15 +237,15 @@ void TransactionAnalyzer::checkOutOfRange(Transaction &txn)
         else
         {
             txn.out_of_range = true;
-            std::cout << "[#" << txn.end_time << "] Out-of-Range Access -> PADDR 0x"
-                      << std::hex << std::uppercase << addr
-                      << " (Requester 1 -> " << completer << ")" << std::endl;
+            // std::cout << "[#" << txn.end_time << "] Out-of-Range Access -> PADDR 0x"
+            //           << std::hex << std::uppercase << addr
+            //           << " (Requester 1 -> " << completer << ")" << std::endl;
         }
     }
     catch (const std::exception &e)
     {
-        std::cerr << "[ERROR] Failed to parse/check PADDR: " << txn.addr
-                  << " -> " << e.what() << std::endl;
+        // std::cerr << "[ERROR] Failed to parse/check PADDR: " << txn.addr
+        //           << " -> " << e.what() << std::endl;
     }
 }
 
@@ -275,10 +280,10 @@ void TransactionAnalyzer::checkMirroring(Transaction &txn) // done
             {
                 const auto &[src_addr, src_time] = it->second;
 
-                std::cout << "[#" << txn.end_time << "] Data Mirroring -> Value "
-                          << binToHex(txn.data) << " written at PADDR "
-                          << binToHex(src_addr) << " also found at PADDR "
-                          << binToHex(txn.addr) << std::endl;
+                // std::cout << "[#" << txn.end_time << "] Data Mirroring -> Value "
+                //           << binToHex(txn.data) << " written at PADDR "
+                //           << binToHex(src_addr) << " also found at PADDR "
+                //           << binToHex(txn.addr) << std::endl;
 
                 txn.data_mirrored = true;
                 txn.mirrored_with_addr = binToHex(src_addr);
@@ -338,11 +343,13 @@ void TransactionAnalyzer::reportAddressCorruptions()
 {
     for (const auto &[cid, detector] : completer_addr_detectors)
     {
-        std::cout << "Completer " << cid << " Address Floating: ";
+        // std::cout << "Completer " << cid << " Address Floating: ";
         if (detector.found())
-            std::cout << "a" << detector.bit1() << "-a" << detector.bit2() << std::endl;
+            // std::cout << "a" << detector.bit1() << "-a" << detector.bit2() << std::endl
+            ;
         else
-            std::cout << "Not detected" << std::endl;
+            // std::cout << "Not detected" << std::endl
+            ;
     }
 }
 
@@ -350,11 +357,13 @@ void TransactionAnalyzer::reportDataCorruptions()
 {
     for (const auto &[cid, detector] : completer_data_detectors)
     {
-        std::cout << "Completer " << cid << " Data Floating: ";
+        // std::cout << "Completer " << cid << " Data Floating: ";
         if (detector.found())
-            std::cout << "d" << detector.bit1() << "-d" << detector.bit2() << std::endl;
+            // std::cout << "d" << detector.bit1() << "-d" << detector.bit2() << std::endl
+            ;
         else
-            std::cout << "Not detected" << std::endl;
+            // std::cout << "Not detected" << std::endl
+            ;
     }
 }
 
@@ -365,10 +374,10 @@ const std::vector<Transaction> &TransactionAnalyzer::getTransactions() const
 
 void TransactionAnalyzer::reportActiveCompleters()
 {
-    std::cout << "Number of Completers: " << active_completers.size() << std::endl;
+    // std::cout << "Number of Completers: " << active_completers.size() << std::endl;
     for (const auto &c : active_completers)
     {
-        std::cout << "-> Completer Detected: " << c << std::endl;
+        // std::cout << "-> Completer Detected: " << c << std::endl;
     }
 }
 
@@ -378,15 +387,33 @@ int TransactionAnalyzer::getCompleterCount() const
 }
 void TransactionAnalyzer::printCompleterInfo(std::ostream &os)
 {
-    std::cout << "[DEBUG] Generating Completer connection report..." << std::endl;
-    std::cout << "[DEBUG] #Completer Addr Detectors = " << completer_addr_detectors.size() << std::endl;
-    std::cout << "[DEBUG] #Completer Data Detectors = " << completer_data_detectors.size() << std::endl;
+    // std::cout << "[DEBUG] Generating Completer connection report..." << std::endl;
+    // std::cout << "[DEBUG] #Completer Addr Detectors = " << completer_addr_detectors.size() << std::endl;
+    // std::cout << "[DEBUG] #Completer Data Detectors = " << completer_data_detectors.size() << std::endl;
 
     std::unordered_set<int> all_completer_ids;
+    for (auto &[cid, detector] : completer_addr_detectors)
+    {
+        // std::cout << "[DEBUG] Finalizing Addr Detector for Completer " << cid << std::endl;
+        detector.finalize();
+    }
+    for (auto &[cid, detector] : completer_data_detectors)
+    {
+        // std::cout << "[DEBUG] Finalizing Data Detector for Completer " << cid << std::endl;
+        detector.finalize();
+    }
     for (const auto &[cid, _] : completer_addr_detectors)
+    {
+        bool found = completer_addr_detectors[cid].found();
+        // std::cout << "[DEBUG] Addr Detector Completer " << cid << " found=" << found << std::endl;
         all_completer_ids.insert(cid);
+    }
     for (const auto &[cid, _] : completer_data_detectors)
+    {
+        bool found = completer_data_detectors[cid].found();
+        // std::cout << "[DEBUG] Data Detector Completer " << cid << " found=" << found << std::endl;
         all_completer_ids.insert(cid);
+    }
     for (int cid : all_completer_ids)
     {
         os << "Completer " << cid << " PADDR Connections\n";
@@ -397,7 +424,7 @@ void TransactionAnalyzer::printCompleterInfo(std::ostream &os)
             a1 = it_addr->second.bit1();
             a2 = it_addr->second.bit2();
         }
-        for (int i = 7; i >= 0; --i)
+        for (int i = 31; i >= 0; --i)
         {
             if (i == a1)
                 os << "a" << i << ": Connected with a" << a2 << "\n";
@@ -416,7 +443,7 @@ void TransactionAnalyzer::printCompleterInfo(std::ostream &os)
             d1 = it_data->second.bit1();
             d2 = it_data->second.bit2();
         }
-        for (int i = 7; i >= 0; --i)
+        for (int i = 31; i >= 0; --i)
         {
             if (i == d1)
                 os << "d" << i << ": Connected with d" << d2 << "\n";
@@ -426,5 +453,65 @@ void TransactionAnalyzer::printCompleterInfo(std::ostream &os)
                 os << "d" << i << ": Correct\n";
         }
         os << "\n";
+    }
+}
+
+void TransactionAnalyzer::generateCompleterErrorReport(std::ostream &os)
+{
+    std::vector<std::pair<uint64_t, std::string>> error_logs;
+    for (const auto &txn : transactions)
+    {
+        if (txn.addr_corrupted)
+        {
+            std::stringstream ss;
+            ss << "[#" << txn.end_time << "] Address Corruption → Expected PADDR: " << binToHex(txn.addr)
+               << ", Received: " << binToHex(txn.expected_addr)
+               << " (a" << completer_addr_detectors[txn.completer_id].bit1()
+               << "-a" << completer_addr_detectors[txn.completer_id].bit2() << " Floating)";
+            error_logs.emplace_back(txn.end_time, ss.str());
+        }
+        if (txn.data_corrupted)
+        {
+            std::stringstream ss;
+            ss << "[#" << txn.end_time << "] Data Corruption → Expected PWDATA: " << binToHex(txn.orig_data)
+               << ", Received: " << binToHex(txn.data)
+               << " (d" << completer_data_detectors[txn.completer_id].bit1()
+               << "-d" << completer_data_detectors[txn.completer_id].bit2() << " Floating)";
+            error_logs.emplace_back(txn.end_time, ss.str());
+        }
+        if (txn.out_of_range)
+        {
+            std::stringstream ss;
+            ss << "[#" << txn.end_time << "] Out-of-Range Access → PADDR " << binToHex(txn.addr)
+               << " (Requester 1 → Completer " << txn.completer_id << ")";
+            error_logs.emplace_back(txn.end_time, ss.str());
+        }
+        if (txn.data_mirrored)
+        {
+            std::stringstream ss;
+            ss << "[#" << txn.end_time << "] Data Mirroring → Value " << binToHex(txn.data)
+               << " written at PADDR " << txn.mirrored_with_addr
+               << " also found at PADDR " << binToHex(txn.addr);
+            error_logs.emplace_back(txn.end_time, ss.str());
+        }
+        if (txn.timed_out)
+        {
+            std::stringstream ss;
+            ss << "[#" << txn.start_time << "] Timeout Occurred → Transaction Stalled at PADDR "
+               << binToHex(txn.addr);
+            error_logs.emplace_back(txn.start_time, ss.str());
+        }
+    }
+    for (const auto &e : overlap_errors)
+    {
+        std::stringstream ss;
+        ss << "[#" << e.start_time << "] Read-Write Overlap Error → Read & Write at PADDR "
+           << binToHex(e.addr) << " overlapped";
+        error_logs.emplace_back(e.start_time, ss.str());
+    }
+    std::sort(error_logs.begin(), error_logs.end());
+    for (const auto &[_, line] : error_logs)
+    {
+        os << line << "\n";
     }
 }

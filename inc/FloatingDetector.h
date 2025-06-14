@@ -11,16 +11,22 @@ public:
     {
         if (expected.size() != received.size())
             return;
-        std::vector<int> diff_bits;
+
         for (int i = 0; i < expected.size(); ++i)
-            if (expected[i] != received[i])
-                diff_bits.push_back(i);
-        if (diff_bits.size() == 2)
         {
-            pair_counter[keyOf(diff_bits[0], diff_bits[1])]++;
+            if (expected[i] != received[i])
+            {
+                for (int j = 0; j < expected.size(); ++j)
+                {
+                    if (i != j && expected[j] == received[i])
+                    {
+                        // i 原本是 A，現在變成 B（B 是 j 的值）→ 推測 i 被 j 短路
+                        pair_counter[keyOf(i, j)]++;
+                    }
+                }
+            }
         }
     }
-
     void finalize()
     {
         has_pair = false;

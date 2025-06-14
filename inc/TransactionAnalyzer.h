@@ -49,6 +49,7 @@ public:
     int getCompleterCount() const;
     void setSymbolTable(const std::unordered_map<std::string, SignalInfo> &table);
     void printCompleterInfo(std::ostream &os);
+    void generateCompleterErrorReport(std::ostream &os);
 
 private:
     void finalize(Transaction &txn);
