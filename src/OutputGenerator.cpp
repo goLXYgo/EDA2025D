@@ -1,4 +1,4 @@
-#include "../inc/outputwriter.h"
+#include "../inc/OutputGenerator.h"
 #include <fstream>
 #include <iomanip>
 
@@ -6,28 +6,32 @@ using namespace std;
 
 void writeReport(const vector<Transaction> &transactions, const string &output_file)
 {
+
     int read_no_wait = 0, read_wait = 0;
     int write_no_wait = 0, write_wait = 0;
-    int total_read_cycles = 0, total_write_cycles = 0;
 
+    uint64_t read_total_cycles = 0;
+    uint64_t write_total_cycles = 0;
+    uint64_t clock_period_ps = 5000; // 根據你的 VCD 檔案推定的時脈週期
     for (const auto &tx : transactions)
     {
-        int cycle = static_cast<int>(tx.end_time - tx.start_time);
+        uint64_t cycles = ((tx.end_time - tx.start_time) + clock_period_ps - 1) / clock_period_ps;
+
         if (tx.type == TransactionType::READ)
         {
-            total_read_cycles += cycle;
             if (tx.has_wait_state)
                 read_wait++;
             else
                 read_no_wait++;
+            read_total_cycles += cycles;
         }
         else
         {
-            total_write_cycles += cycle;
             if (tx.has_wait_state)
                 write_wait++;
             else
                 write_no_wait++;
+            write_total_cycles += cycles;
         }
     }
 
@@ -38,16 +42,17 @@ void writeReport(const vector<Transaction> &transactions, const string &output_f
     fout << "Number of Read Transactions with wait states: " << read_wait << endl;
     fout << "Number of Write Transactions with no wait states: " << write_no_wait << endl;
     fout << "Number of Write Transactions with wait states: " << write_wait << endl;
-
+    double avg_read = (read_no_wait + read_wait) ? (double)read_total_cycles / (read_no_wait + read_wait) : 0.0;
+    double avg_write = (write_no_wait + write_wait) ? (double)write_total_cycles / (write_no_wait + write_wait) : 0.0;
     fout << "Average Read Cycle: ";
     if ((read_no_wait + read_wait) > 0)
-        fout << static_cast<double>(total_read_cycles) / (read_no_wait + read_wait) << " cycles" << endl;
+        fout << avg_read << " cycles" << endl;
     else
         fout << "UNKNOWN" << endl;
 
     fout << "Average Write Cycle: ";
     if ((write_no_wait + write_wait) > 0)
-        fout << static_cast<double>(total_write_cycles) / (write_no_wait + write_wait) << " cycles" << endl;
+        fout << avg_write << " cycles" << endl;
     else
         fout << "UNKNOWN" << endl;
 
