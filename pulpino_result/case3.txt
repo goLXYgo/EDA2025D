@@ -1,7 +1,0 @@
-Total Transactions: 906
-Number of Read Transactions with no wait states: 300
-Number of Read Transactions with wait states: 0
-Number of Write Transactions with no wait states: 606
-Number of Write Transactions with wait states: 0
-Number of Transactions with Timeout: 0
-10. CPU Elapsed Time: 275.10 ms
