@@ -1,6 +1,8 @@
 #ifndef SIGNAL_HISTORY_H
 #define SIGNAL_HISTORY_H
 
+#include "SignalSnapshot.h"
+
 #include <unordered_map>
 #include <vector>
 #include <string>

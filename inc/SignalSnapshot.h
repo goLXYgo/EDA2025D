@@ -8,12 +8,13 @@
 struct SignalSnapshot {
     uint64_t timestamp; // The timestamp when this snapshot was taken
     std::unordered_map<std::string, std::string> signal_values; // Signal name → value mapping
+
+    // Add this constructor
+    SignalSnapshot(uint64_t ts, const std::unordered_map<std::string, std::string> &signals)
+        : timestamp(ts), signal_values(signals) {}
+
+    // Optional: keep the default constructor for flexibility
+    SignalSnapshot() = default;
 };
-
-// Debug printer
-void printSnapshot(const SignalSnapshot &snapshot);
-
-// Snapshot comparator
-bool compareSnapshots(const SignalSnapshot &a, const SignalSnapshot &b);
 
 #endif // SIGNAL_SNAPSHOT_H
