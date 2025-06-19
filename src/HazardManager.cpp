@@ -17,12 +17,27 @@ void HazardManager::processSignal(uint64_t timestamp) {
     rw_overlap_detector.check(timestamp, current_state);
     corruption_detector.check(timestamp, current_state);
 
-    // You can collect transactions as needed here.
-    // For now, if transactions are built by a specific detector, retrieve them from it.
+    // Optional: collect transactions if each detector builds them
+    // Example: This can be expanded if you want to merge transactions from all detectors
 }
 
 std::vector<Transaction> HazardManager::getParsedTransactions() const {
-    return timeout_detector.getTransactions(); // Example: or combine results from all detectors
+    // Merge transactions from all detectors (if applicable)
+    std::vector<Transaction> all;
+
+    auto t1 = timeout_detector.getTransactions();
+    auto t2 = oor_detector.getTransactions();
+    auto t3 = duplication_detector.getTransactions();
+    auto t4 = rw_overlap_detector.getTransactions();
+    auto t5 = corruption_detector.getTransactions();
+
+    all.insert(all.end(), t1.begin(), t1.end());
+    all.insert(all.end(), t2.begin(), t2.end());
+    all.insert(all.end(), t3.begin(), t3.end());
+    all.insert(all.end(), t4.begin(), t4.end());
+    all.insert(all.end(), t5.begin(), t5.end());
+
+    return all;
 }
 
 const HazardReport &HazardManager::getHazardReport() const {

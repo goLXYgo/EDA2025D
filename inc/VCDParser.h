@@ -1,6 +1,3 @@
-// =========================
-// apb_vcd_analyzer/VCDParser.h
-// =========================
 #ifndef VCD_PARSER_H
 #define VCD_PARSER_H
 
@@ -9,35 +6,31 @@
 #include <vector>
 #include <utility>
 #include <cstdint>
-#include <fstream>
-#include <sstream>
-
-using namespace std;
 
 struct SignalInfo {
-    string name;
-    string type;
+    std::string name;
+    std::string type;
     int width;
 };
 
 struct VCDChange {
     uint64_t timestamp;
-    vector<pair<string, string>> changes;
+    std::vector<std::pair<std::string, std::string>> changes;
 };
 
 class VCDParser {
 public:
     VCDParser();
-    bool load(const string &filename);
-    const unordered_map<string, SignalInfo> &getSymbolTable() const;
-    const vector<VCDChange> &getChanges() const;
+    bool load(const std::string &filename);
+    const std::unordered_map<std::string, SignalInfo> &getSymbolTable() const;
+    const std::vector<VCDChange> &getChanges() const;
 
 private:
-    unordered_map<string, SignalInfo> symbol_table;
-    vector<VCDChange> changes;
+    std::unordered_map<std::string, SignalInfo> symbol_table;
+    std::vector<VCDChange> changes;
 
-    string trim(const string &s);
-    string binToHex(const string &bin);
+    std::string trim(const std::string &s);
+    std::string binToHex(const std::string &bin);
 };
 
 #endif // VCD_PARSER_H

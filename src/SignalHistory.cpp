@@ -5,6 +5,9 @@ void SignalHistory::applyChange(uint64_t timestamp, const std::string &signal, c
     // Update current signal value
     current_state[signal] = value;
 
+    // ✅ Record the full change history for each signal
+    signal_traces[signal].emplace_back(timestamp, value);
+
     // Record in delta list (append to latest timestamp group if matched)
     if (!deltas.empty() && deltas.back().timestamp == timestamp) {
         deltas.back().changes[signal] = value;

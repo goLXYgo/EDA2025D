@@ -2,9 +2,15 @@
 #define HAZARD_MANAGER_H
 
 #include "SignalHistory.h"
+#include "Transaction.h"
+#include "HazardReport.h"
+
+#include "TimeoutDetector.h"
+#include "OutOfRangeDetector.h"
 #include "DataDuplicationDetector.h"
 #include "ReadWriteOverlapDetector.h"
 #include "DataCorruptionDetector.h"
+
 #include <vector>
 
 class HazardManager {
@@ -23,9 +29,13 @@ private:
 public:
     HazardManager(SignalHistory &history);
 
+    // Process each signal change and update all hazard records
     void processSignal(uint64_t timestamp);
 
+    // Merge and return all parsed transactions (if multiple detectors generate them)
     std::vector<Transaction> getParsedTransactions() const;
+
+    // Return the complete hazard report
     const HazardReport &getHazardReport() const;
 };
 
