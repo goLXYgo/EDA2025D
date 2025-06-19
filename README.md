@@ -18,18 +18,20 @@ Here’s the updated To-Do list with itemized targets at the end:
 
 [✔️] Transaction.h (Done)
 
+[✔️] TimeoutDetector.h / TimeoutDetector.cpp
+
+[✔️] OutOfRangeDetector.h / OutOfRangeDetector.cpp
+
+[✔️] DataDuplicationDetector.h / DataDuplicationDetector.cpp
+
+[✔️] ReadWriteOverlapDetector.h / ReadWriteOverlapDetector.cpp
+
+[✔️] DataCorruptionDetector.h / DataCorruptionDetector.cpp
+
+[✔️] HazardReport.h
+
 🚧 Files To Build:
-TimeoutDetector ⏳ 🔨
-
-OutOfRangeDetector
-
-DataDuplicationDetector
-
-ReadWriteOverlapDetector
-
-DataCorruptionDetector
-
-HazardReport.h
+⏳ 🔨
 
 📌 Future Optimizations:
 Multi-threading support
